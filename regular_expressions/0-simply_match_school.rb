@@ -1,4 +1,4 @@
 #!/usr/bin/env ruby
 
 # Regular expression that matches "School"
-puts ARGV[0].scan(/School/)
+ARGV[0].scan(/School/) { |match| puts match }
