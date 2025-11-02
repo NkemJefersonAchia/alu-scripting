@@ -1,101 +1,60 @@
 #!/usr/bin/python3
-"""
-Recursive function that queries the Reddit API, parses the title of all hot
-articles, and prints a sorted count of given keywords
-"""
+""""Doc"""
 import requests
 
 
-def count_words(subreddit, word_list, after=None, word_count=None):
-    """
-    Recursively counts keywords in hot article titles from a subreddit
+def count_words(subreddit, word_list, after="", words_count={}):
+    """"Doc"""
+    url = "https://www.reddit.com/r/{}/hot.json?limit=100" \
+        .format(subreddit)
+    header = {'User-Agent': 'Mozilla/5.0'}
+    param = {'after': after}
+    res = requests.get(url, headers=header, params=param)
 
-    Args:
-        subreddit (str): The subreddit to search
-        word_list (list): List of keywords to count
-        after (str): Pagination token for next page
-        word_count (dict): Dictionary to accumulate word counts
-
-    Returns:
-        None: Results are printed to stdout
-    """
-    # Initialize word_count dictionary on first call
-    if word_count is None:
-        word_count = {}
-        # Convert word_list to lowercase and initialize counts
-        for word in word_list:
-            word_lower = word.lower()
-            word_count[word_lower] = word_count.get(word_lower, 0)
-
-    # Base URL for Reddit API
-    url = "https://www.reddit.com/r/{}/hot.json".format(subreddit)
-
-    # Set headers
-    headers = {
-        'User-Agent': 'python:reddit_keyword_counter:v1.0'
-    }
-
-    # Add pagination parameter if we have an 'after' token
-    params = {'limit': 100}
-    if after:
-        params['after'] = after
-
-    # Make the API request - don't follow redirects
-    response = requests.get(
-        url,
-        headers=headers,
-        params=params,
-        allow_redirects=False
-    )
-
-    # If subreddit is invalid, return without printing
-    if response.status_code != 200:
+    if res.status_code != 200:
         return
 
-    # Parse the JSON response
-    data = response.json()
-    posts = data['data']['children']
+    json_res = res.json()  # chch
+    after = json_res.get('data').get('after')
+    has_next = after is not None
+    hot_titles = []
+    words = [word.lower() for word in word_list]
 
-    # Process titles from current page
-    for post in posts:
-        title = post['data']['title']
-        # Split title into words and count matches
-        words_in_title = title.split()
-        for title_word in words_in_title:
-            # Clean the word and convert to lowercase
-            clean_word = ''.join(
-                char for char in title_word if char.isalnum()
-            ).lower()
-            # Check if this clean word matches any of our keywords
-            if clean_word in word_count:
-                word_count[clean_word] += 1
+    if len(words_count) == 0:
+        words_count = {word: 0 for word in words}
+    # print(words_count)
+    hot_articles = json_res.get('data').get('children')
+    [hot_titles.append(article.get('data').get('title'))
+     for article in hot_articles]
 
-    # Get the pagination token for next page
-    next_after = data['data']['after']
+    # loop through all titles
+    for i in range(len(hot_titles)):
+        # make the title as a list of word
+        # title_words = hot_titles[i].lower().split()
+        for title_word in hot_titles[i].lower().split():
+            for word in words:
+                if word.lower() == title_word:
+                    words_count[word] = words_count.get(word) + 1
+                # else:
+                #     # pass
+                #     print(word.lower() + " != " + title_word)
 
-    # If there's a next page, make recursive call
-    if next_after:
-        return count_words(subreddit, word_list, next_after, word_count)
+    if has_next:
+        # print(after + "\t" + str(has_next))
+        return count_words(subreddit, word_list, after, words_count)
     else:
-        # No more pages - process and print results
-        print_results(word_count)
 
+        words_count = dict(filter(lambda item: item[1] != 0,
+                                  words_count.items()))
+        # their python version is not making people’s life easier
+        # words_count = {key: value for key, value in
+        #                sorted(words_count.items(),
+        #                       key=lambda item: item[1], reverse=True)}
 
-def print_results(word_count):
-    """
-    Print the word counts in sorted order
+        words_count = sorted(words_count.items(),
+                             key=lambda item: item[1],
+                             reverse=True)
 
-    Args:
-        word_count (dict): Dictionary of word counts
-    """
-    # Filter out words with zero counts
-    filtered_counts = [
-        (word, count) for word, count in word_count.items() if count > 0
-    ]
-
-    # Sort by count (descending) and then by word (ascending)
-    sorted_counts = sorted(filtered_counts, key=lambda x: (-x[1], x[0]))
-
-    # Print results
-    for word, count in sorted_counts:
-        print("{}: {}".format(word, count))
+        for i in range(len(words_count)):
+            print("{}: {}".format(words_count[i][0],
+                                  words_count[i][1]))
